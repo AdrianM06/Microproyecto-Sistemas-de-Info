@@ -11,9 +11,7 @@ void main() async {
   runApp(PuzzleApp(prefs: prefs));
 }
 
-// ==========================================
 // MODELOS Y SERVICIO DE PERSISTENCIA
-// ==========================================
 
 enum AppThemeMode { light, dark }
 enum TileStyle { classic, colorful, minimalist }
@@ -111,9 +109,7 @@ class StorageService {
   }
 }
 
-// ==========================================
 // APLICACIÓN PRINCIPAL CON ESTADO DE TEMA
-// ==========================================
 
 class PuzzleApp extends StatefulWidget {
   final SharedPreferences prefs;
@@ -193,9 +189,7 @@ class PuzzleAppState extends State<PuzzleApp> {
   }
 }
 
-// ==========================================
 // 1. PANTALLA SPLASH
-// ==========================================
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -335,9 +329,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-// ==========================================
 // 2. MENÚ PRINCIPAL
-// ==========================================
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -498,9 +490,7 @@ class _MenuButtonState extends State<_MenuButton> {
   }
 }
 
-// ==========================================
 // 3. PANTALLA DE CONFIGURACIÓN
-// ==========================================
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -629,9 +619,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-// ==========================================
 // 4. PANTALLA DE MARCADORES (HIGH SCORES)
-// ==========================================
+
 
 class HighScoresScreen extends StatefulWidget {
   const HighScoresScreen({super.key});
@@ -780,9 +769,7 @@ class _HighScoresScreenState extends State<HighScoresScreen>
   }
 }
 
-// ==========================================
 // 5. PANTALLA DE INSTRUCCIONES
-// ==========================================
 
 class InstructionsScreen extends StatelessWidget {
   const InstructionsScreen({super.key});
@@ -899,9 +886,7 @@ class _InstructionStep extends StatelessWidget {
   }
 }
 
-// ==========================================
 // 6. PANTALLA DE JUEGO Y LÓGICA DEL PUZZLE
-// ==========================================
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -1243,9 +1228,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ==========================================
 // 7. WIDGET DE FICHA (PUZZLE TILE)
-// ==========================================
 
 class PuzzleTileWidget extends StatelessWidget {
   final int value;
