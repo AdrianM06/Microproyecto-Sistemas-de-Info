@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
@@ -9,7 +11,9 @@ void main() async {
   runApp(PuzzleApp(prefs: prefs));
 }
 
+// ==========================================
 // MODELOS Y SERVICIO DE PERSISTENCIA
+// ==========================================
 
 enum AppThemeMode { light, dark }
 enum TileStyle { classic, colorful, minimalist }
@@ -44,7 +48,7 @@ class StorageService {
   static const String keyTileStyle = 'pref_tile_style';
   static const String keyScoresPrefix = 'high_scores_';
 
-  int getDifficulty() => prefs.getInt(keyDifficulty) ?? 4;
+  int getDifficulty() => prefs.getInt(keyDifficulty) ?? 4; // 3x3, 4x4, 5x5
   Future<void> setDifficulty(int size) => prefs.setInt(keyDifficulty, size);
 
   AppThemeMode getThemeMode() {
@@ -107,7 +111,9 @@ class StorageService {
   }
 }
 
+// ==========================================
 // APLICACIÓN PRINCIPAL CON ESTADO DE TEMA
+// ==========================================
 
 class PuzzleApp extends StatefulWidget {
   final SharedPreferences prefs;
@@ -187,7 +193,9 @@ class PuzzleAppState extends State<PuzzleApp> {
   }
 }
 
+// ==========================================
 // 1. PANTALLA SPLASH
+// ==========================================
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -327,7 +335,9 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
+// ==========================================
 // 2. MENÚ PRINCIPAL
+// ==========================================
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -361,26 +371,32 @@ class MainMenuScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 32),
-               _MenuButton(
-                 icon: Icons.play_arrow_rounded,
-                 label: 'JUGAR',
-                 color: theme.colorScheme.primary,
-                 textColor: theme.colorScheme.onPrimary,
-                 onPressed: () {
-                   Navigator.push(
-                     context,
-                     MaterialPageRoute(
-                        builder: (_) => const GameScreen()),
-                   );
-                 },
-             ),
+                _MenuButton(
+                  icon: Icons.play_arrow_rounded,
+                  label: 'JUGAR',
+                  color: theme.colorScheme.primary,
+                  textColor: theme.colorScheme.onPrimary,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const GameScreen()),
+                    );
+                  },
+                ),
                 const SizedBox(height: 16),
                 _MenuButton(
                   icon: Icons.emoji_events_rounded,
                   label: 'MARCADORES',
                   color: theme.colorScheme.secondaryContainer,
                   textColor: theme.colorScheme.onSecondaryContainer,
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const HighScoresScreen()),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 _MenuButton(
@@ -482,7 +498,9 @@ class _MenuButtonState extends State<_MenuButton> {
   }
 }
 
+// ==========================================
 // 3. PANTALLA DE CONFIGURACIÓN
+// ==========================================
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -611,7 +629,160 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+// ==========================================
+// 4. PANTALLA DE MARCADORES (HIGH SCORES)
+// ==========================================
+
+class HighScoresScreen extends StatefulWidget {
+  const HighScoresScreen({super.key});
+
+  @override
+  State<HighScoresScreen> createState() => _HighScoresScreenState();
+}
+
+class _HighScoresScreenState extends State<HighScoresScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _confirmClearScores(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Borrar Marcadores'),
+        content: const Text(
+            '¿Estás seguro de que deseas eliminar todos los récords de forma permanente?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final appState = PuzzleApp.of(context);
+              await appState.storage.clearScores();
+              Navigator.pop(ctx);
+              setState(() {});
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Marcadores eliminados')),
+                );
+              }
+            },
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreList(int gridSize) {
+    final appState = PuzzleApp.of(context);
+    final scores = appState.storage.getScores(gridSize);
+
+    if (scores.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.emoji_events_outlined,
+                size: 64, color: Theme.of(context).disabledColor),
+            const SizedBox(height: 16),
+            const Text(
+              '¡Aún no hay récords guardados!\nCompleta una partida para registrar tu tiempo.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: scores.length,
+      itemBuilder: (context, index) {
+        final score = scores[index];
+        final mins = (score.seconds ~/ 60).toString().padLeft(2, '0');
+        final secs = (score.seconds % 60).toString().padLeft(2, '0');
+
+        return Card(
+          elevation: index == 0 ? 3 : 1,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: index == 0
+                  ? Colors.amber
+                  : (index == 1
+                      ? Colors.grey.shade400
+                      : (index == 2
+                          ? Colors.brown.shade300
+                          : Theme.of(context).colorScheme.primaryContainer)),
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            title: Text(
+              'Tiempo: $mins:$secs | Movimientos: ${score.moves}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text('Fecha: ${dateFormat.format(score.date)}'),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tabla de Marcadores'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded),
+            tooltip: 'Borrar marcadores',
+            onPressed: () => _confirmClearScores(context),
+          )
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Fácil (3x3)'),
+            Tab(text: 'Medio (4x4)'),
+            Tab(text: 'Difícil (5x5)'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildScoreList(3),
+          _buildScoreList(4),
+          _buildScoreList(5),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
 // 5. PANTALLA DE INSTRUCCIONES
+// ==========================================
 
 class InstructionsScreen extends StatelessWidget {
   const InstructionsScreen({super.key});
@@ -693,7 +864,7 @@ class _InstructionStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Row(
-      crossAxisAlignment: CrossAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CircleAvatar(
           radius: 18,
@@ -727,7 +898,10 @@ class _InstructionStep extends StatelessWidget {
     );
   }
 }
+
+// ==========================================
 // 6. PANTALLA DE JUEGO Y LÓGICA DEL PUZZLE
+// ==========================================
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -843,9 +1017,84 @@ class _GameScreenState extends State<GameScreen> {
       });
 
       if (_isSolved(tiles)) {
-        // Victoria detectada
+        _finishGame();
       }
     }
+  }
+
+  void _finishGame() async {
+    _timer?.cancel();
+    setState(() {
+      isGameFinished = true;
+      isGameActive = false;
+    });
+
+    final appState = PuzzleApp.of(context);
+    final newScore = GameScore(
+      moves: moves,
+      seconds: secondsElapsed,
+      date: DateTime.now(),
+    );
+
+    bool isNewRecord = await appState.storage.saveScore(gridSize, newScore);
+
+    if (mounted) {
+      _showWinDialog(isNewRecord);
+    }
+  }
+
+  void _showWinDialog(bool isNewRecord) {
+    final mins = (secondsElapsed ~/ 60).toString().padLeft(2, '0');
+    final secs = (secondsElapsed % 60).toString().padLeft(2, '0');
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.stars_rounded, color: Colors.amber, size: 36),
+            const SizedBox(width: 10),
+            Text(isNewRecord ? '¡NUEVO RÉCORD!' : '¡GANASTE!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Completaste el rompecabezas de $gridSize x $gridSize.'),
+            const SizedBox(height: 12),
+            Text('• Movimientos: $moves',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('• Tiempo: $mins:$secs',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (isNewRecord) ...[
+              const SizedBox(height: 12),
+              const Text(
+                '🎉 ¡Felicidades! Lograste la mejor marca para esta dificultad.',
+                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+              ),
+            ]
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: const Text('Menú Principal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _generateSolvableBoard();
+            },
+            child: const Text('Reiniciar Partida'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -993,6 +1242,10 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+
+// ==========================================
+// 7. WIDGET DE FICHA (PUZZLE TILE)
+// ==========================================
 
 class PuzzleTileWidget extends StatelessWidget {
   final int value;
