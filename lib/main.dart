@@ -9,9 +9,7 @@ void main() async {
   runApp(PuzzleApp(prefs: prefs));
 }
 
-// ==========================================
 // MODELOS Y SERVICIO DE PERSISTENCIA
-// ==========================================
 
 enum AppThemeMode { light, dark }
 enum TileStyle { classic, colorful, minimalist }
@@ -109,9 +107,7 @@ class StorageService {
   }
 }
 
-// ==========================================
 // APLICACIÓN PRINCIPAL CON ESTADO DE TEMA
-// ==========================================
 
 class PuzzleApp extends StatefulWidget {
   final SharedPreferences prefs;
@@ -191,9 +187,7 @@ class PuzzleAppState extends State<PuzzleApp> {
   }
 }
 
-// ==========================================
 // 1. PANTALLA SPLASH
-// ==========================================
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -333,9 +327,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-// ==========================================
 // 2. MENÚ PRINCIPAL
-// ==========================================
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -369,13 +361,19 @@ class MainMenuScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 32),
-                _MenuButton(
-                  icon: Icons.play_arrow_rounded,
-                  label: 'JUGAR',
-                  color: theme.colorScheme.primary,
-                  textColor: theme.colorScheme.onPrimary,
-                  onPressed: () {},
-                ),
+               _MenuButton(
+                 icon: Icons.play_arrow_rounded,
+                 label: 'JUGAR',
+                 color: theme.colorScheme.primary,
+                 textColor: theme.colorScheme.onPrimary,
+                 onPressed: () {
+                   Navigator.push(
+                     context,
+                     MaterialPageRoute(
+                        builder: (_) => const GameScreen()),
+                   );
+                 },
+             ),
                 const SizedBox(height: 16),
                 _MenuButton(
                   icon: Icons.emoji_events_rounded,
@@ -484,9 +482,7 @@ class _MenuButtonState extends State<_MenuButton> {
   }
 }
 
-// ==========================================
 // 3. PANTALLA DE CONFIGURACIÓN
-// ==========================================
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -615,9 +611,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-// ==========================================
 // 5. PANTALLA DE INSTRUCCIONES
-// ==========================================
 
 class InstructionsScreen extends StatelessWidget {
   const InstructionsScreen({super.key});
@@ -730,6 +724,341 @@ class _InstructionStep extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+// 6. PANTALLA DE JUEGO Y LÓGICA DEL PUZZLE
+
+class GameScreen extends StatefulWidget {
+  const GameScreen({super.key});
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  late int gridSize;
+  late List<int> tiles;
+  int moves = 0;
+  int secondsElapsed = 0;
+  Timer? _timer;
+  bool isGameActive = false;
+  bool isGameFinished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final appState = PuzzleApp.of(context);
+    gridSize = appState.difficulty;
+    _generateSolvableBoard();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _generateSolvableBoard() {
+    final random = Random();
+    final totalTiles = gridSize * gridSize;
+    List<int> newTiles = List.generate(totalTiles, (index) => index);
+
+    do {
+      newTiles.shuffle(random);
+    } while (!_isSolvable(newTiles, gridSize) || _isSolved(newTiles));
+
+    setState(() {
+      tiles = newTiles;
+      moves = 0;
+      secondsElapsed = 0;
+      isGameActive = false;
+      isGameFinished = false;
+    });
+    _timer?.cancel();
+  }
+
+  bool _isSolvable(List<int> tileList, int size) {
+    int inversions = 0;
+    int n = tileList.length;
+
+    for (int i = 0; i < n; i++) {
+      for (int j = i + 1; j < n; j++) {
+        if (tileList[i] != 0 && tileList[j] != 0 && tileList[i] > tileList[j]) {
+          inversions++;
+        }
+      }
+    }
+
+    if (size % 2 != 0) {
+      return inversions % 2 == 0;
+    } else {
+      int emptyIndex = tileList.indexOf(0);
+      int emptyRowFromBottom = size - (emptyIndex ~/ size);
+      if (emptyRowFromBottom % 2 == 0) {
+        return inversions % 2 != 0;
+      } else {
+        return inversions % 2 == 0;
+      }
+    }
+  }
+
+  bool _isSolved(List<int> tileList) {
+    for (int i = 0; i < tileList.length - 1; i++) {
+      if (tileList[i] != i + 1) return false;
+    }
+    return tileList.last == 0;
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        secondsElapsed++;
+      });
+    });
+  }
+
+  void _onTileTap(int index) {
+    if (isGameFinished) return;
+
+    int emptyIndex = tiles.indexOf(0);
+    int row = index ~/ gridSize;
+    int col = index % gridSize;
+    int emptyRow = emptyIndex ~/ gridSize;
+    int emptyCol = emptyIndex % gridSize;
+
+    bool isAdjacent = (row == emptyRow && (col - emptyCol).abs() == 1) ||
+        (col == emptyCol && (row - emptyRow).abs() == 1);
+
+    if (isAdjacent) {
+      if (!isGameActive) {
+        isGameActive = true;
+        _startTimer();
+      }
+
+      setState(() {
+        tiles[emptyIndex] = tiles[index];
+        tiles[index] = 0;
+        moves++;
+      });
+
+      if (_isSolved(tiles)) {
+        // Victoria detectada
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final appState = PuzzleApp.of(context);
+    final tileStyle = appState.tileStyle;
+
+    final mins = (secondsElapsed ~/ 60).toString().padLeft(2, '0');
+    final secs = (secondsElapsed % 60).toString().padLeft(2, '0');
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Puzzle $gridSize x $gridSize'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Reiniciar tablero',
+            onPressed: _generateSolvableBoard,
+          )
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatCard(
+                    icon: Icons.touch_app_rounded,
+                    label: 'Movimientos',
+                    value: '$moves',
+                  ),
+                  _StatCard(
+                    icon: Icons.timer_rounded,
+                    label: 'Tiempo',
+                    value: '$mins:$secs',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          )
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(8.0),
+                      child: GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: gridSize,
+                          crossAxisSpacing: 6,
+                          mainAxisSpacing: 6,
+                        ),
+                        itemCount: gridSize * gridSize,
+                        itemBuilder: (context, index) {
+                          final value = tiles[index];
+                          if (value == 0) {
+                            return const SizedBox.shrink();
+                          }
+                          return PuzzleTileWidget(
+                            value: value,
+                            gridSize: gridSize,
+                            style: tileStyle,
+                            onTap: () => _onTileTap(index),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class PuzzleTileWidget extends StatelessWidget {
+  final int value;
+  final int gridSize;
+  final TileStyle style;
+  final VoidCallback onTap;
+
+  const PuzzleTileWidget({
+    super.key,
+    required this.value,
+    required this.gridSize,
+    required this.style,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    Color backgroundColor;
+    Color textColor;
+    BoxBorder? border;
+
+    switch (style) {
+      case TileStyle.colorful:
+        final hue = (value * 360 / (gridSize * gridSize)) % 360;
+        backgroundColor = HSLColor.fromAHSL(1.0, hue, 0.65, 0.50).toColor();
+        textColor = Colors.white;
+        break;
+
+      case TileStyle.minimalist:
+        backgroundColor = theme.colorScheme.surface;
+        textColor = theme.colorScheme.onSurface;
+        border = Border.all(color: theme.colorScheme.outline, width: 1.5);
+        break;
+
+      case TileStyle.classic:
+      default:
+        backgroundColor = theme.colorScheme.primary;
+        textColor = theme.colorScheme.onPrimary;
+        break;
+    }
+
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: border,
+          ),
+          child: Center(
+            child: Text(
+              '$value',
+              style: TextStyle(
+                fontSize: gridSize == 5 ? 20 : (gridSize == 4 ? 24 : 32),
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
